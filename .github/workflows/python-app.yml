@@ -1,0 +1,40 @@
+name: Build and Publish to PyPI
+
+on:
+  push:
+    branches:
+      - main          # 仅当推送到 main 分支时触发，可改为 master 或其他分支
+  workflow_dispatch:  # 保留手动触发
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools wheel twine build
+
+      - name: Build package
+        run: |
+          python -m build
+          ls -l dist/
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload --skip-existing dist/*
