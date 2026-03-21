@@ -3,7 +3,7 @@ name: Publish to PyPI and GitHub Release
 on:
   push:
     tags:
-      - 'v*-*'          # 匹配形如 v1.0.1-p, v1.0.1-beta 的标签
+      - 'v*-*'
   workflow_dispatch:
     inputs:
       version:
@@ -26,20 +26,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}   # 确保有写入权限
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine version and type
         id: parse
         run: |
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG="${{ github.ref_name }}"
-            # 移除前缀 v，例如 v1.0.1-p -> 1.0.1-p
             TAG_NO_V="${TAG#v}"
-            # 提取基础版本 (第一个 - 之前的部分)
             BASE_VERSION=$(echo "$TAG_NO_V" | cut -d'-' -f1)
-            # 提取类型 (第一个 - 之后的部分)
             TYPE=$(echo "$TAG_NO_V" | cut -d'-' -f2-)
-            # 将类型标准化为短代码 (fix->f, beta->b, test->t, patch->p)
             case "$TYPE" in
               fix|f) TYPE_SHORT="f" ;;
               beta|b) TYPE_SHORT="b" ;;
@@ -48,7 +44,6 @@ jobs:
               *) echo "Unknown type: $TYPE"; exit 1 ;;
             esac
           else
-            # 手动触发
             BASE_VERSION="${{ github.event.inputs.version }}"
             TYPE_SHORT="${{ github.event.inputs.type }}"
             case "$TYPE_SHORT" in
@@ -65,34 +60,9 @@ jobs:
       - name: Read and increment counter
         id: counter
         run: |
-          # 读取计数器文件，若不存在则创建
           COUNTER_FILE=".version-counters.json"
-          if [ ! -f "$COUNTER_FILE" ]; then
-            echo '{}' > "$COUNTER_FILE"
-          fi
-          # 使用 Python 读取、递增、写回
-          python << EOF
-import json
-import os
-
-counter_file = "$COUNTER_FILE"
-with open(counter_file, 'r') as f:
-    data = json.load(f)
-
-type_key = "${{ steps.parse.outputs.type }}"
-current = data.get(type_key, 0)
-new = current + 1
-data[type_key] = new
-
-with open(counter_file, 'w') as f:
-    json.dump(data, f, indent=2)
-
-# 输出新计数器到 GitHub Actions 环境
-with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-    f.write(f"new_counter={new}\n")
-EOF
-        env:
-          GITHUB_OUTPUT: $GITHUB_OUTPUT
+          if [ ! -f "$COUNTER_FILE" ]; then echo '{}' > "$COUNTER_FILE"; fi
+          python -c "import json, os; f='$COUNTER_FILE'; d=json.load(open(f)); t='${{ steps.parse.outputs.type }}'; d[t]=d.get(t,0)+1; json.dump(d,open(f,'w')); print(f'new_counter={d[t]}')" >> $GITHUB_OUTPUT
 
       - name: Generate final version
         id: version
