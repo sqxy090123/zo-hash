@@ -2,23 +2,61 @@ name: Publish to PyPI and GitHub Release
 
 on:
   push:
+    branches:
+      - main              # 推送 main 分支时触发
     tags:
-      - 'v*'                # 推送以 v 开头的标签时触发
-  workflow_dispatch:        # 支持手动触发
+      - 'v*'              # 推送 v* 标签时触发
+  workflow_dispatch:      # 手动触发
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write        # 用于 PyPI 的 OIDC 认证
-      contents: write        # 用于创建 GitHub Release
-      packages: write        # 可选，如果也发布到 GitHub Packages
+      id-token: write      # 用于 PyPI OIDC 认证
+      contents: write      # 用于创建 GitHub Release
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0      # 确保获取所有标签（用于 setuptools_scm 可选）
+          fetch-depth: 0
+
+      # 提取基础版本（从 setup.py 中读取 version 字段）
+      - name: Extract base version
+        id: base_version
+        run: |
+          # 假设 setup.py 中有 version='x.y.z'
+          VERSION=$(grep -oP "(?<=version=['\"])[^'\"]+" setup.py | head -1)
+          echo "base_version=$VERSION" >> $GITHUB_OUTPUT
+
+      # 生成完整版本：base_version + -pref.<run_number>
+      - name: Generate dynamic version
+        id: dynamic_version
+        run: |
+          FULL_VERSION="${{ steps.base_version.outputs.base_version }}-pref.${{ github.run_number }}"
+          echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+
+      # 动态修改 setup.py 中的版本号（使用 Python 脚本，更安全）
+      - name: Set dynamic version in setup.py
+        run: |
+          python << EOF
+          import re
+          with open('setup.py', 'r') as f:
+              content = f.read()
+          new_content = re.sub(
+              r"version=['\"]([^'\"]+)['\"]",
+              f"version='{full_version}'",
+              content
+          )
+          with open('setup.py', 'w') as f:
+              f.write(new_content)
+          EOF
+        env:
+          full_version: ${{ steps.dynamic_version.outputs.full_version }}
+
+      # 可选：查看修改后的版本是否正确
+      - name: Show version
+        run: grep -i version setup.py
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,21 +66,23 @@ jobs:
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel twine build
+          pip install build twine
 
       - name: Build package
-        run: |
-          python -m build
-          ls -l dist/
+        run: python -m build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        # 由于版本唯一，不需要 skip-existing
 
+      # 如果是标签触发，则创建 GitHub Release 并附加构建的包
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*        # 将分发包附加到 Release
-          generate_release_notes: true   # 自动生成更新日志（基于 PR 标题等）
-          # 如果不想自动生成，可手动指定 body: "Release notes here"
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: dist/*
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
