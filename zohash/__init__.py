@@ -1,4 +1,10 @@
-from ._hash import file_hash_256, memory_hash_256
-from ._zo import zo3sum, zo4sum
+"""
+ZO-Hash 模块
+提供基于海绵结构的256位哈希算法，以及ZO编码的哈希表示。
+支持内存数据和文件的哈希计算。
+"""
 
-__all__ = ['file_hash_256', 'memory_hash_256', 'zo3sum', 'zo4sum']
+from ._hash import filehash_256v1, memoryhash_256v2
+from ._zo import zo_basev1, zo1
+
+__all__ = ['filehash_256v1', 'memoryhash_256v2', 'zo_basev1', 'zo1']

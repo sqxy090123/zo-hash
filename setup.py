@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='zo-hash',
-    version='1.0.0',
+    version='1.0.0.1',
     description='A custom sponge-based 256-bit hash with ZO encoding',
     author='sqxy090123',
     author_email='sqx20150423@gmail.com',
