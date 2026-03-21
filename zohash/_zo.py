@@ -48,28 +48,25 @@ def _file_length_and_sum(path: str, chunk_size: int = 65536):
 
 def _file_sample_sum(path: str, indices: list, chunk_size: int = 65536):
     """
-    根据索引列表流式计算采样字节和
+    根据索引列表流式计算采样字节和（支持重复索引）
     :param path: 文件路径
-    :param indices: 待采样字节索引列表（已排序）
+    :param indices: 待采样字节索引列表（可重复）
     :param chunk_size: 读取块大小
     :return: 采样字节值的和
     """
-    indices_sorted = sorted(indices)
+    from collections import Counter
+    index_counts = Counter(indices)
     sampled_sum = 0
     pos = 0
-    idx_ptr = 0
     with open(path, "rb") as f:
-        while idx_ptr < len(indices_sorted):
-            target = indices_sorted[idx_ptr]
-            if pos > target:
-                raise RuntimeError("Unexpected state")
-            f.seek(target)
-            byte = f.read(1)
-            if not byte:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
                 break
-            sampled_sum += byte[0]
-            pos = target + 1
-            idx_ptr += 1
+            for b in chunk:
+                if pos in index_counts:
+                    sampled_sum += b * index_counts[pos]
+                pos += 1
     return sampled_sum
 
 def zo_basev1(path: str) -> ZO:
@@ -97,7 +94,7 @@ def zo1(path: str) -> str:
     rng = random.Random(seed)
     k = rng.randint(1, 128)
 
-    # 生成随机索引
+    # 生成随机索引（允许重复）
     indices = [rng.randint(0, length - 1) for _ in range(k)]
     sampled_sum = _file_sample_sum(path, indices)
 
