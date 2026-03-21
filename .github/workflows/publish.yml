@@ -2,49 +2,119 @@ name: Publish to PyPI and GitHub Release
 
 on:
   push:
-    branches:
-      - main
     tags:
-      - 'v*'
+      - 'v*-*'          # 匹配形如 v1.0.1-p, v1.0.1-beta 的标签
   workflow_dispatch:
+    inputs:
+      version:
+        description: '基础版本号 (如 1.0.1)'
+        required: true
+      type:
+        description: '发布类型 (fix|beta|test|patch)'
+        required: true
+        default: 'patch'
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write   # 用于 PyPI OIDC 认证
-      contents: write   # 用于创建 GitHub Release
+      id-token: write
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}   # 确保有写入权限
 
-      # 从 setup.py 中提取基础版本（如 1.0.0.1）
-      - name: Extract base version
-        id: base_version
+      - name: Determine version and type
+        id: parse
         run: |
-          # 匹配 version='...' 或 version="..." 中的内容
-          VERSION=$(grep -oP "(?<=version=['\"])([^'\"]+)" setup.py | head -1)
-          echo "base_version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+            # 移除前缀 v，例如 v1.0.1-p -> 1.0.1-p
+            TAG_NO_V="${TAG#v}"
+            # 提取基础版本 (第一个 - 之前的部分)
+            BASE_VERSION=$(echo "$TAG_NO_V" | cut -d'-' -f1)
+            # 提取类型 (第一个 - 之后的部分)
+            TYPE=$(echo "$TAG_NO_V" | cut -d'-' -f2-)
+            # 将类型标准化为短代码 (fix->f, beta->b, test->t, patch->p)
+            case "$TYPE" in
+              fix|f) TYPE_SHORT="f" ;;
+              beta|b) TYPE_SHORT="b" ;;
+              test|t) TYPE_SHORT="t" ;;
+              patch|p) TYPE_SHORT="p" ;;
+              *) echo "Unknown type: $TYPE"; exit 1 ;;
+            esac
+          else
+            # 手动触发
+            BASE_VERSION="${{ github.event.inputs.version }}"
+            TYPE_SHORT="${{ github.event.inputs.type }}"
+            case "$TYPE_SHORT" in
+              fix|f) TYPE_SHORT="f" ;;
+              beta|b) TYPE_SHORT="b" ;;
+              test|t) TYPE_SHORT="t" ;;
+              patch|p) TYPE_SHORT="p" ;;
+              *) echo "Invalid type"; exit 1 ;;
+            esac
+          fi
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "type=$TYPE_SHORT" >> $GITHUB_OUTPUT
 
-      # 生成完整版本号：base_version-pref.<run_number>
-      - name: Generate dynamic version
-        id: dynamic_version
+      - name: Read and increment counter
+        id: counter
         run: |
-          FULL_VERSION="${{ steps.base_version.outputs.base_version }}-pref.${{ github.run_number }}"
-          echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          # 读取计数器文件，若不存在则创建
+          COUNTER_FILE=".version-counters.json"
+          if [ ! -f "$COUNTER_FILE" ]; then
+            echo '{}' > "$COUNTER_FILE"
+          fi
+          # 使用 Python 读取、递增、写回
+          python << EOF
+import json
+import os
 
-      # 将 setup.py 中的版本号替换为动态版本（单行命令，避免缩进问题）
-      - name: Set dynamic version in setup.py
+counter_file = "$COUNTER_FILE"
+with open(counter_file, 'r') as f:
+    data = json.load(f)
+
+type_key = "${{ steps.parse.outputs.type }}"
+current = data.get(type_key, 0)
+new = current + 1
+data[type_key] = new
+
+with open(counter_file, 'w') as f:
+    json.dump(data, f, indent=2)
+
+# 输出新计数器到 GitHub Actions 环境
+with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+    f.write(f"new_counter={new}\n")
+EOF
         env:
-          FULL_VERSION: ${{ steps.dynamic_version.outputs.full_version }}
-        run: |
-          python -c "import os, re; full_version = os.environ['FULL_VERSION']; content = open('setup.py').read(); new_content = re.sub(r\"version=['\\\"]([^'\\\"]+)['\\\"]\", f\"version='{full_version}'\", content); open('setup.py', 'w').write(new_content)"
+          GITHUB_OUTPUT: $GITHUB_OUTPUT
 
-      # 可选：显示修改后的版本以确认
-      - name: Show version
+      - name: Generate final version
+        id: version
+        run: |
+          FINAL_VERSION="${{ steps.parse.outputs.base_version }}+${{ steps.parse.outputs.type }}.${{ steps.counter.outputs.new_counter }}"
+          echo "final_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update setup.py with final version
+        env:
+          FINAL_VERSION: ${{ steps.version.outputs.final_version }}
+        run: |
+          python -c "import os, re; version = os.environ['FINAL_VERSION']; content = open('setup.py').read(); new_content = re.sub(r\"version=['\\\"]([^'\\\"]+)['\\\"]\", f\"version='{version}'\", content); open('setup.py', 'w').write(new_content)"
+
+      - name: Commit counter file (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .version-counters.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update version counter for ${{ steps.parse.outputs.type }}"
+          git push
+
+      - name: Show final version
         run: grep version setup.py
 
       - name: Set up Python
@@ -63,9 +133,7 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-      # 如果是标签触发，则创建 GitHub Release 并附加分发包
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
