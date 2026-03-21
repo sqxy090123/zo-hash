@@ -36,20 +36,12 @@ jobs:
           FULL_VERSION="${{ steps.base_version.outputs.base_version }}-pref.${{ github.run_number }}"
           echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
 
-      # 将 setup.py 中的版本号替换为动态版本
+      # 将 setup.py 中的版本号替换为动态版本（单行命令，避免缩进问题）
       - name: Set dynamic version in setup.py
         env:
           FULL_VERSION: ${{ steps.dynamic_version.outputs.full_version }}
         run: |
-          python -c "
-            import os, re
-            full_version = os.environ['FULL_VERSION']
-            with open('setup.py', 'r') as f:
-                content = f.read()
-            new_content = re.sub(r\"version=['\\\"]([^'\\\"]+)['\\\"]\", f\"version='{full_version}'\", content)
-            with open('setup.py', 'w') as f:
-                f.write(new_content)
-            "
+          python -c "import os, re; full_version = os.environ['FULL_VERSION']; content = open('setup.py').read(); new_content = re.sub(r\"version=['\\\"]([^'\\\"]+)['\\\"]\", f\"version='{full_version}'\", content); open('setup.py', 'w').write(new_content)"
 
       # 可选：显示修改后的版本以确认
       - name: Show version
