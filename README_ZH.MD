@@ -63,14 +63,13 @@
 
 ## 安装
 
-bash`
-pip install zo-hash
-`
+bash```
+pip install zo-hash```
 ---
 
 ## 使用示例
 
-python`
+python```
 from zohash import filehash_256v1, zo1, dy1
 
 # 文件哈希（256位整数）
@@ -80,8 +79,7 @@ h = filehash_256v1("example.txt")
 z = zo1("example.txt")
 
 # DY1 指纹（64位，编码为 ZO 字符串）
-d = dy1("example.txt")
-`
+d = dy1("example.txt")```
 
 ---
 

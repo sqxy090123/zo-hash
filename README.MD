@@ -65,14 +65,13 @@ If you have experience in cryptography or hash function analysis, we warmly welc
 
 ## Installation
 
-bash`
-pip install zo-hash
-`
+bash```
+pip install zo-hash```
 ---
 
 ## Example Usage
 
-python`
+python```
 from zohash import filehash_256v1, zo1, dy1
 
 # File hash (256-bit integer)
@@ -82,8 +81,7 @@ h = filehash_256v1("example.txt")
 z = zo1("example.txt")
 
 # DY1 fingerprint (64-bit, encoded as ZO string)
-d = dy1("example.txt")
-`
+d = dy1("example.txt")```
 ---
 
 ## License
