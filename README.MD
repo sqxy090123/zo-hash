@@ -71,16 +71,16 @@ If you have experience in cryptography or hash function analysis, we warmly welc
 ## Example Usage
 
 `
-    from zohash import filehash_256v1, zo1, dy1
+    from zohash import filehash_256v1, zohash, dyhash
 
     # File hash (256-bit integer)
     h = filehash_256v1("example.txt")
 
     # ZO1 fingerprint (string with checksum)
-    z = zo1("example.txt")
+    z = zohash.zo1("example.txt")
 
     # DY1 fingerprint (64-bit, encoded as ZO string)
-    d = dy1("example.txt")
+    d = dyhashdy1("example.txt")
 `
 ---
 

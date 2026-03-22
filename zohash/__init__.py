@@ -12,19 +12,17 @@ usage:
 ```
 """
 
+
 from ._hash import filehash_256v1, memoryhash_256v2
+from . import _dyhash as dyhash
+from . import _zo as zohash
+"""
 from ._zo import zo_basev1, zo1, zo2
 from ._dyhash import dy1, dy64, dy128, dy256, dy512
+"""
+
 
 __all__ = [
-    'filehash_256v1',
-    'memoryhash_256v2',
-    'zo_basev1',
-    'zo1',
-    'zo2',
-    'dy1',
-    'dy64',
-    'dy128',
-    'dy256',
-    'dy512',
+    "zohash",
+    "dyhash"
 ]
