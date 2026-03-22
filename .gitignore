@@ -6,3 +6,6 @@ build/
 .idea/
 .vscode/
 .hide-*
+_*.*
+hello_world.py
+calc.py

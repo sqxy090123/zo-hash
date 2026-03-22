@@ -1,67 +1,93 @@
 # ZO-Hash / DY-Hash
 
-**警告：本项目包含未经密码学审查的自研哈希算法，存在严重安全漏洞，切勿用于生产环境或任何安全敏感场景！**
+**⚠️ WARNING: This project contains self-developed hash algorithms that have not undergone cryptographic review. They contain severe security vulnerabilities and MUST NOT be used in production or any security-sensitive scenarios!**
 
-这是一个实验性的 Python 模块，提供基于**海绵结构 + ARX 置换**的自定义 256 位哈希算法（`Sponge256`），以及基于该哈希的几种编码和指纹生成函数（`zo1`、`zo2`、`dy1` 等）。代码仅供学习、测试或非对抗性场景（如检测偶然文件损坏）使用。
+This is an experimental Python module providing a custom 256‑bit hash algorithm (`Sponge256`) based on a sponge construction with ARX permutation, along with several encoding and fingerprint generation functions (`zo1`, `zo2`, `dy1`, etc.). The code is intended for learning, testing, or non‑adversarial use cases (e.g., detecting accidental file corruption).
+
+---
+## Other Languages
+- # [中文](README_ZH.MD)
+
+## Features
+
+- `filehash_256v1` / `memoryhash_256v2` – self‑developed 256‑bit hash (not cryptographically validated)
+- `zo_basev1` – ZO encoding of the hash (Base64‑like alphabet)
+- `zo1` – hash + random sampled byte sum
+- `zo2` – hash + file start/middle/end feature hash + random sampled byte sum
+- `dy1` – fingerprint based on pseudo‑random bit‑sampling (64‑bit output)
+
+All functions are deterministic – the same file always produces the same output.
 
 ---
 
-## 主要功能
+## ⚠️ SECURITY WARNING (MUST READ)
 
-- `filehash_256v1` / `memoryhash_256v2`：自研的 256 位哈希（未经验证）
-- `zo_basev1`：哈希的 ZO 编码（Base64 风格）
-- `zo1`：哈希 + 随机采样字节和
-- `zo2`：哈希 + 文件前/中/后特征哈希 + 随机采样字节和
-- `dy1`：基于伪随机位点采样的指纹（64 位输出）
+### 1. Core Hash is Unverified
+- The internal `Sponge256` is a completely self‑designed ARX permutation, **never cryptanalysed**.
+- With only 12 rounds (or 24 in the “hardened” version), it may be vulnerable to differential/linear attacks.
+- Any claim of “collision resistance” or “tamper‑proofness” is invalid.
 
-所有函数均为确定性输出（同一文件始终得到相同结果）。
+### 2. Short Output & Linear Operations
+- `dy1` produces only **64 bits** → birthday attack complexity is just \(2^{32}\). Collisions can be found in practice.
+- `zo1` / `zo2` use simple byte‑wise summation (max ~32640) – attackers can adjust file content while keeping the sum unchanged.
+- All final mixing (XOR, rotation) is linear, making algebraic attacks possible.
 
----
+### 3. No Public Review
+- The entire codebase has not been peer‑reviewed by the cryptographic community.
+- Undisclosed vulnerabilities may exist: collision construction, preimage attacks, length‑extension, etc.
 
-## ⚠️ 安全警告（必须阅读）
+### 4. Prohibited Uses
+- ❌ Digital signatures
+- ❌ File integrity (anti‑tampering)
+- ❌ Authentication
+- ❌ Any security‑sensitive environment
+- ❌ Production systems
 
-### 1. 核心哈希未经验证
-- 内部使用的 `Sponge256` 是完全自研的 ARX 置换，**未经过任何密码学分析**。
-- 轮数（12 轮）可能不足，轮常数分布不均，存在潜在的差分/线性攻击路径。
-- 任何声称“抗碰撞”、“抗篡改”的说法均不成立。
-
-### 2. 输出长度与线性操作
-- `dy1` 最终输出仅 **64 位**，碰撞抵抗能力极弱（生日攻击复杂度仅 \(2^{32}\)）。
-- `zo1` / `zo2` 中的采样部分仅为字节值的简单求和（最大约 32640），攻击者可轻易调整文件内容保持采样和不变。
-- 合并操作（异或、循环移位）本质是线性的，易受代数攻击。
-
-### 3. 整体设计未经过公开审查
-- 所有函数均未经过同行评审或密码学社区检验。
-- 可能存在尚未发现的碰撞构造、原像攻击或长度扩展攻击方法。
-
-### 4. 明确禁止用途
-- ❌ 数字签名
-- ❌ 文件完整性校验（防篡改）
-- ❌ 身份验证
-- ❌ 任何需要抗恶意攻击的场景
-- ❌ 生产环境、关键基础设施
-
-### 5. 唯一可能的安全使用方式
-- ✅ 检测非恶意的传输错误（如网络下载校验）
-- ✅ 内部测试、实验性学习
-- ✅ 在明确知晓风险的前提下，作为非安全标识符（如临时缓存键）
+### 5. Only Safe Use Cases
+- ✅ Detecting accidental transmission errors (e.g., download checksums)
+- ✅ Internal testing / experimental learning
+- ✅ Non‑security identifiers when risks are fully understood (e.g., temporary cache keys)
 
 ---
 
-## 🔍 邀请安全/密码学开发者审查
+## 🔍 Invitation for Security / Cryptographic Review
 
-如果您对密码学或哈希算法有研究，我们非常欢迎您对代码进行审计，并指出具体的问题位置。当前已知的脆弱点包括：
+If you have experience in cryptography or hash function analysis, we warmly welcome your review of the code. Please point out specific vulnerabilities. Known weak spots include:
 
-- `_hash.py` 中的 `permutation` 函数（12 轮 ARX 置换）
-- `_zo.py` 中的 `_file_sample_sum`（简单的字节求和）
-- `_dyhash.py` 中的 `dy1`（64 位输出 + 线性合并）
-- 所有依赖自研哈希的地方
+- `_hash.py` – `permutation` function (12/24 rounds ARX)
+- `_zo.py` – `_file_sample_sum` (simple byte sum)
+- `_dyhash.py` – `dy1` (64‑bit output + linear mixing)
+- All functions that rely on the custom hash
 
-**欢迎提交 Issue 或 Pull Request**，帮助我们改进或指出更详细的漏洞分析。如果您发现实际可行的碰撞构造，请通过 Issue 告知我们。
+**We welcome Issues and Pull Requests** that help improve the code or provide a detailed vulnerability analysis. If you find a practical collision attack, please let us know via an Issue.
 
 ---
 
-## 安装
+## Installation
 
-```bash
+[code]
 pip install zo-hash
+[/code]
+
+---
+
+## Example Usage
+
+[code]
+from zohash import filehash_256v1, zo1, dy1
+
+# File hash (256-bit integer)
+h = filehash_256v1("example.txt")
+
+# ZO1 fingerprint (string with checksum)
+z = zo1("example.txt")
+
+# DY1 fingerprint (64-bit, encoded as ZO string)
+d = dy1("example.txt")
+[/code]
+
+---
+
+## License
+
+This project is provided for educational purposes only. Use at your own risk.
