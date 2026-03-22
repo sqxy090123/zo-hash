@@ -6,7 +6,7 @@ This is an experimental Python module providing a custom 256‑bit hash algorith
 
 ---
 ## Other Languages
-- # [REAdMD.MD (中文)](README_ZH.MD)
+- ### [REAdMD.MD (中文)](README_ZH.MD)
 
 ## Features
 

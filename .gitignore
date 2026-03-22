@@ -9,3 +9,4 @@ build/
 _*.*
 hello_world.py
 calc.py
+*.bin
