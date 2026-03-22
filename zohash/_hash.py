@@ -1,9 +1,9 @@
 """
-自定义海绵结构哈希算法（256位）
+自定义海绵结构哈希算法（256位） - 加固版
 状态：512位（8个64位字）
 吸收速率：256位（4个字）
 容量：256位（4个字）
-轮数：12
+轮数：24（原12轮，加固后增加至24轮）
 基于ARX置换，抗可逆性
 """
 
@@ -14,6 +14,7 @@ RATE_WORDS = 4
 CAPACITY_WORDS = 4
 WORD_BITS = 64
 WORD_MASK = (1 << WORD_BITS) - 1
+ROUNDS = 24  # 加固：增加轮数至24
 
 # 轮常数（黄金分割比小数部分）
 ROUND_CONSTANTS = [
@@ -22,23 +23,26 @@ ROUND_CONSTANTS = [
     0x452821E638D01377, 0xBE5466CF34E90C6C, 0xC0AC29B7C97C50DD, 0x3F84D5B5B5470917,
 ]
 
+
 def rotl(x: int, n: int) -> int:
     """64位循环左移"""
     n &= 63
     return ((x << n) | (x >> (64 - n))) & WORD_MASK
+
 
 def rotr(x: int, n: int) -> int:
     """64位循环右移"""
     n &= 63
     return ((x >> n) | (x << (64 - n))) & WORD_MASK
 
+
 def permutation(state: list) -> None:
     """
-    对8个64位字进行ARX置换（12轮）
+    对8个64位字进行ARX置换（24轮）
     :param state: 状态列表，原地修改
     """
-    for r in range(12):
-        # 列混合（异或相邻字）
+    for r in range(ROUNDS):
+        # 列混合（异或相邻字，使用固定旋转量）
         for i in range(STATE_WORDS):
             state[i] ^= rotl(state[(i + 1) % STATE_WORDS], 13)
             state[i] ^= rotr(state[(i + 2) % STATE_WORDS], 17)
@@ -48,11 +52,12 @@ def permutation(state: list) -> None:
             state[i] ^= state[(i + 4) % STATE_WORDS]
         # 整体旋转（循环移位状态数组）
         state.append(state.pop(0))
-        # 加轮常数（仅影响第一个字）
+        # 加轮常数（仅影响第一个字，常数循环使用）
         state[0] ^= ROUND_CONSTANTS[r % len(ROUND_CONSTANTS)]
 
+
 class Sponge256:
-    """海绵结构哈希，支持流式更新"""
+    """海绵结构哈希，支持流式更新（加固版）"""
     def __init__(self) -> None:
         self._state = [0] * STATE_WORDS
         self._buffer = bytearray()
@@ -88,7 +93,7 @@ class Sponge256:
             self._buffer.append(0x00)
         if self._buffer:
             self._absorb_block(bytes(self._buffer))
-        # 吸收总长度（64位）
+        # 吸收总长度（64位），使用32字节块（前8字节为长度，后24字节为0）
         length_block = self._total.to_bytes(8, 'little') + b'\x00' * 24
         self._absorb_block(length_block)
         # 再应用一轮置换
@@ -99,9 +104,10 @@ class Sponge256:
             result |= (self._state[i] << (64 * i))
         return result
 
+
 def filehash_256v1(path: str, chunk_size: int = 65536) -> int:
     """
-    流式计算文件的256位哈希（v1版本）
+    流式计算文件的256位哈希（v1版本，加固版）
     :param path: 文件路径
     :param chunk_size: 读取块大小，默认64KB
     :return: 哈希整数值
@@ -112,9 +118,10 @@ def filehash_256v1(path: str, chunk_size: int = 65536) -> int:
             h.update(chunk)
     return h.digest()
 
+
 def memoryhash_256v2(data: bytes) -> int:
     """
-    计算内存数据的256位哈希（v2版本）
+    计算内存数据的256位哈希（v2版本，加固版）
     :param data: 字节数据
     :return: 哈希整数值
     """

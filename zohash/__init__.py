@@ -6,6 +6,17 @@ ZO-Hash 模块
 
 from ._hash import filehash_256v1, memoryhash_256v2
 from ._zo import zo_basev1, zo1, zo2
-from ._dyhash import dy1
+from ._dyhash import dy1, dy64, dy128, dy256, dy512
 
-__all__ = ['filehash_256v1', 'memoryhash_256v2', 'zo_basev1', 'zo1', 'zo2', 'dy1']
+__all__ = [
+    'filehash_256v1',
+    'memoryhash_256v2',
+    'zo_basev1',
+    'zo1',
+    'zo2',
+    'dy1',
+    'dy64',
+    'dy128',
+    'dy256',
+    'dy512',
+]
